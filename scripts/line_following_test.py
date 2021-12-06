@@ -4,7 +4,7 @@ import rospy
 import cv2
 from cv_bridge import CvBridge
 import numpy as np
-
+from collections import deque
 from carla_msgs.msg import CarlaEgoVehicleControl
 from sensor_msgs.msg import Image, CameraInfo
 
@@ -12,6 +12,9 @@ class Follower:
   def __init__(self):
 
     self.bridge = CvBridge()
+    self.lat_error_deque_length = 10
+    self.lat_error_queue = deque(
+        maxlen=self.lat_error_deque_length)
     
     self.image_sub = rospy.Subscriber('rgb_image', 
                                       Image, self.image_callback)
@@ -42,10 +45,14 @@ class Follower:
       cy = int(M['m01']/M['m00'])
       cv2.circle(image, (cx,cy), 20, (0,0,0), -1)
 
-
       err = cx - w/2
-      self.control.throttle = 0.15
-      self.control.steer = -float(err) / 100
+      self.lat_error_queue.append(err)
+      error_it = sum(self.lat_error_queue)
+      e_i = 0.05 * error_it
+      e_p = float(err) / 100
+      lat_control = np.clip((e_p + e_i), -1, 1)
+      self.control.throttle = 0.07
+      self.control.steer = lat_control
       self.cmd_vel_pub.publish(self.control)
     
 
