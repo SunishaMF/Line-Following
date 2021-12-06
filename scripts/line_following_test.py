@@ -40,20 +40,28 @@ class Follower:
     masked_image = cv2.bitwise_and(image, image, mask = mask)
     h, w, d = image.shape
     M = cv2.moments(masked_image)
-    if M['m00'] > 0:
-      cx = int(M['m10']/M['m00'])
-      cy = int(M['m01']/M['m00'])
-      cv2.circle(image, (cx,cy), 20, (0,0,0), -1)
 
-      err = cx - w/2
-      self.lat_error_queue.append(err)
-      error_it = sum(self.lat_error_queue)
-      e_i = 0.05 * error_it
-      e_p = float(err) / 100
-      lat_control = np.clip((e_p + e_i), -1, 1)
-      self.control.throttle = 0.07
-      self.control.steer = lat_control
-      self.cmd_vel_pub.publish(self.control)
+    if M['m00'] > 0:
+        cx = int(M['m10']/M['m00'])
+        cy = int(M['m01']/M['m00'])
+        cv2.circle(image, (cx,cy), 20, (0,0,0), -1)
+
+        err = cx - w/2
+        error_dt = 0 if len(self.lat_error_queue) == 0 else err - self.lat_error_queue[-1]
+        self.lat_error_queue.append(err)
+        error_it = sum(self.lat_error_queue)
+        e_d = 0.5 * error_dt
+        e_i = 0.05 * error_it
+        e_p = float(err) / 100
+        lat_control = np.clip((e_p + e_i + e_d), -1, 1)
+        self.control.throttle = 0.07 
+        self.control.steer = lat_control
+        self.cmd_vel_pub.publish(self.control)
+    else:
+        self.control.throttle = 0
+        self.control.steer = 0
+        self.cmd_vel_pub.publish(self.control)
+
     
 
     cv2.imshow("mask",mask)
